@@ -1,0 +1,11 @@
+{
+  "name": "app-vault",
+  "version": "1.2.1",
+  "private": true,
+  "type": "module",
+  "description": "Control center para sa mga web app: hosting, accounts, logins, bayarin, renewals at update history. Firebase + Vercel.",
+  "scripts": {
+    "dev": "npx serve .",
+    "test": "node tests/smoke.mjs"
+  }
+}

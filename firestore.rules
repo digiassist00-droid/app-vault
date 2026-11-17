@@ -1,0 +1,147 @@
+rules_version = '2';
+
+// App Vault. Dalawa ang role: admin at developer.
+// Lahat ng data ay nangangailangan ng: verified email + Google Authenticator (2FA) + may profile sa users/.
+// Ang mga password, API key, .env at file ay naka-encrypt na sa browser, kaya ciphertext lang ang nakikita ng Firestore.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // PARA I-OFF ANG 2FA REQUIREMENT: palitan ang laman ng mfa() ng:  return true;
+    // (Gawin din ang require2FA: false sa js/config.js.)
+    function mfa() {
+      return request.auth.token.firebase.get('sign_in_second_factor', '') == 'totp';
+    }
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function strong() { return verified() && mfa(); }
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isMember() { return strong() && profile().role in ['admin', 'developer']; }
+    function isAdmin()  { return strong() && profile().role == 'admin'; }
+    function mine()     { return request.resource.data.createdBy == request.auth.uid; }
+    function sameOwner(){ return request.resource.data.createdBy == resource.data.createdBy; }
+    function removable(){ return isAdmin() || resource.data.createdBy == request.auth.uid; }
+
+    // Unang admin: isang beses lang, at kapag wala pang meta/setup.
+    function firstAdmin(uid) {
+      return request.resource.data.role == 'admin'
+        && !exists(/databases/$(database)/documents/meta/setup)
+        && getAfter(/databases/$(database)/documents/meta/setup).data.adminUid == uid;
+    }
+    // Developer: kailangang may invite ang email niya na ginawa ng admin.
+    function invited() {
+      return request.resource.data.role == 'developer'
+        && exists(/databases/$(database)/documents/invites/$(request.auth.token.email.lower()))
+        && get(/databases/$(database)/documents/invites/$(request.auth.token.email.lower())).data.role == 'developer';
+    }
+
+    match /users/{uid} {
+      allow get: if strong() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if strong()
+        && request.auth.uid == uid
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'createdAt'])
+        && (firstAdmin(uid) || invited());
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'name']);
+      allow delete: if isAdmin() && uid != request.auth.uid;
+    }
+
+    match /invites/{email} {
+      allow read, write: if isAdmin();
+    }
+
+    match /meta/setup {
+      allow get: if true;
+      allow create: if strong()
+        && !exists(/databases/$(database)/documents/meta/setup)
+        && request.resource.data.adminUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /meta/vault {
+      allow get: if isMember();
+      allow create: if isAdmin() && !exists(/databases/$(database)/documents/meta/vault);
+      // Pagpapalit ng team passphrase (admin lang). Iba pang field ay hindi puwedeng galawin.
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['salt', 'iter', 'verifier', 'rotatedAt', 'rotatedBy']);
+    }
+
+    match /settings/{id} {
+      allow read: if isMember();
+      allow write: if isAdmin();
+    }
+
+    // Admin lang: mga client at bayarin
+    match /clients/{id} { allow read, write: if isAdmin(); }
+    match /billing/{id} { allow read, write: if isAdmin(); }
+
+    // Admin at developer
+    match /apps/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && mine();
+      allow update: if isMember() && sameOwner();
+      allow delete: if isAdmin();
+    }
+    match /logins/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && mine();
+      allow update: if isMember() && sameOwner();
+      allow delete: if isMember() && removable();
+    }
+    match /services/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && mine();
+      allow update: if isMember() && sameOwner();
+      allow delete: if isMember() && removable();
+    }
+    match /envs/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && mine();
+      allow update: if isMember() && sameOwner();
+      allow delete: if isMember() && removable();
+    }
+    match /files/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && mine();
+      allow update: if isMember() && sameOwner();
+      allow delete: if isMember() && removable();
+    }
+    match /fileData/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && mine();
+      // Admin lang, para sa pagpapalit ng team passphrase (re-encrypt ng file).
+      allow update: if isAdmin() && sameOwner();
+      allow delete: if isMember() && removable();
+    }
+    match /changelog/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && mine();
+      allow update: if isMember() && sameOwner();
+      allow delete: if isMember() && removable();
+    }
+    match /renewals/{id} {
+      allow read: if isMember();
+      allow create: if isMember() && mine();
+      allow update: if isMember() && sameOwner();
+      allow delete: if isMember() && removable();
+    }
+
+    // Activity log: admin lang ang nakakabasa. Puwedeng magdagdag ang member, pero hindi puwedeng baguhin o burahin.
+    match /audit/{id} {
+      allow read: if isAdmin();
+      allow create: if isMember() && mine()
+        && request.resource.data.keys().hasOnly(['action', 'detail', 'createdBy', 'createdByName', 'createdAt'])
+        && request.resource.data.action is string && request.resource.data.action.size() <= 40
+        && request.resource.data.detail is string && request.resource.data.detail.size() <= 160
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
