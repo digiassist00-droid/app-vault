@@ -15,7 +15,7 @@ export const VERSION = '1.2.1';
 
 export const OPTIONS = {
   // Dapat naka-ON ito kung naka-ON din ang 2FA check sa firestore.rules (tingnan ang README).
-  require2FA: true,
+  require2FA: false,
   issuer: 'App Vault',
   // Kinakalimutan ng app ang team passphrase pagkatapos ng ilang minutong walang galaw.
   idleKeyLockMinutes: 10,
