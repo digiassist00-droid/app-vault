@@ -2,12 +2,13 @@
 // Firebase Console → Project settings → Your apps → Web app → "SDK setup and configuration".
 // Hindi ito sikreto. Ang firestore.rules ang nagbabantay ng data.
 export const firebaseConfig = {
-  apiKey: 'PASTE_API_KEY',
-  authDomain: 'PASTE_PROJECT_ID.firebaseapp.com',
-  projectId: 'PASTE_PROJECT_ID',
-  storageBucket: 'PASTE_PROJECT_ID.appspot.com',
-  messagingSenderId: 'PASTE_SENDER_ID',
-  appId: 'PASTE_APP_ID',
+  apiKey: "AIzaSyC8bsM5viVneVb5YkcXY0zG5J25WJrWpjQ",
+  authDomain: "app-vault-f8624.firebaseapp.com",
+  databaseURL: "https://app-vault-f8624-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "app-vault-f8624",
+  storageBucket: "app-vault-f8624.firebasestorage.app",
+  messagingSenderId: "880830010053",
+  appId: "1:880830010053:web:8f312e7128e509130b96ac"
 };
 
 export const VERSION = '1.2.1';
